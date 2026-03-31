@@ -85,20 +85,18 @@ export function useArithmeticBuilderAction({
       } else if (isArithmeticBuilderDeleteAction(action)) {
         const newText = deleteTokenText(expressionString, action);
         setExpressionString(newText);
-        updateExpression?.(new Expression(newText, references));
         if (defined(action.focusOverride)) {
           setFocusOverride(action.focusOverride);
         }
       } else if (isArithmeticBuilderReplaceAction(action)) {
         const newText = replaceTokenText(expressionString, action);
         setExpressionString(newText);
-        updateExpression?.(new Expression(newText, references));
         if (defined(action.focusOverride)) {
           setFocusOverride(action.focusOverride);
         }
       }
     },
-    [expressionString, references, updateExpression]
+    [expressionString]
   );
 
   const state = useMemo(
