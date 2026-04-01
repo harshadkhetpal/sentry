@@ -21,6 +21,7 @@ from sentry.integrations.source_code_management.metrics import (
     SCMIntegrationInteractionEvent,
     SCMIntegrationInteractionType,
 )
+from sentry.integrations.source_code_management.repo_audit import log_repo_change
 from sentry.organizations.services.organization import organization_service
 from sentry.plugins.providers.integration_repository import (
     RepoExistsError,
@@ -127,8 +128,9 @@ def sync_repos_for_org(organization_integration_id: int) -> None:
             r for r in all_repos if r.status == ObjectStatus.DISABLED and r.external_id
         ]
 
-        sentry_active_ids = {r.external_id for r in active_repos}
-        sentry_disabled_ids = {r.external_id for r in disabled_repos}
+        # external_id is guaranteed non-None by the filter above
+        sentry_active_ids: set[str] = {r.external_id for r in active_repos}  # type: ignore[misc]
+        sentry_disabled_ids: set[str] = {r.external_id for r in disabled_repos}  # type: ignore[misc]
 
         new_ids = github_external_ids - sentry_active_ids - sentry_disabled_ids
         removed_ids = sentry_active_ids - github_external_ids
@@ -171,6 +173,8 @@ def sync_repos_for_org(organization_integration_id: int) -> None:
         if dry_run:
             return
 
+        repo_by_external_id = {r.external_id: r for r in active_repos + disabled_repos}
+
         if new_ids:
             integration_repo_provider = get_integration_repository_provider(integration)
             repo_configs = [
@@ -179,12 +183,22 @@ def sync_repos_for_org(organization_integration_id: int) -> None:
                 if str(repo["id"]) in new_ids
             ]
             if repo_configs:
+                created_repos = []
                 try:
-                    integration_repo_provider.create_repositories(
+                    created_repos = integration_repo_provider.create_repositories(
                         configs=repo_configs, organization=rpc_org
                     )
                 except RepoExistsError:
                     pass
+
+                for repo in created_repos:
+                    log_repo_change(
+                        event_name="REPO_ADDED",
+                        organization_id=organization_id,
+                        repo=repo,
+                        source="repository sync",
+                        provider=integration.provider,
+                    )
 
         if removed_ids:
             repository_service.disable_repositories_by_external_ids(
@@ -194,12 +208,30 @@ def sync_repos_for_org(organization_integration_id: int) -> None:
                 external_ids=list(removed_ids),
             )
 
+            for eid in removed_ids:
+                repo = repo_by_external_id.get(eid)
+                if repo:
+                    log_repo_change(
+                        event_name="REPO_DISABLED",
+                        organization_id=organization_id,
+                        repo=repo,
+                        source="repository sync",
+                        provider=integration.provider,
+                    )
+
         if restored_ids:
             for repo in disabled_repos:
                 if repo.external_id in restored_ids:
                     repo.status = ObjectStatus.ACTIVE
                     repository_service.update_repository(
                         organization_id=organization_id, update=repo
+                    )
+                    log_repo_change(
+                        event_name="REPO_ENABLED",
+                        organization_id=organization_id,
+                        repo=repo,
+                        source="repository sync",
+                        provider=integration.provider,
                     )
 
 
