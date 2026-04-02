@@ -237,16 +237,6 @@ class AutofixOnCompletionHook(ExplorerOnCompletionHook):
             metrics.incr(
                 "autofix.explorer.complete", tags={"step": current_step.value, "referrer": referrer}
             )
-            completed_event_cls = STEP_CONFIGS[current_step].completed_event
-            if completed_event_cls is not None and referrer is not None:
-                analytics.record(
-                    completed_event_cls(
-                        organization_id=organization.id,
-                        project_id=group.project_id,
-                        group_id=group.id,
-                        referrer=referrer,
-                    )
-                )
             if webhook_action_type == SeerActionType.PR_CREATED and referrer is not None:
                 analytics.record(
                     AiAutofixPrCreatedCompletedEvent(
@@ -256,6 +246,17 @@ class AutofixOnCompletionHook(ExplorerOnCompletionHook):
                         referrer=referrer,
                     )
                 )
+            elif webhook_action_type != SeerActionType.PR_CREATED:
+                completed_event_cls = STEP_CONFIGS[current_step].completed_event
+                if completed_event_cls is not None and referrer is not None:
+                    analytics.record(
+                        completed_event_cls(
+                            organization_id=organization.id,
+                            project_id=group.project_id,
+                            group_id=group.id,
+                            referrer=referrer,
+                        )
+                    )
 
     @classmethod
     def _maybe_trigger_supergroups_embedding(
