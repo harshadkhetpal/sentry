@@ -278,14 +278,15 @@ function TableOfContents({plans}: {plans: Plans}) {
                     <td>{planTierIdFormatted}</td>
                     {planColumnOrder.map(planName => {
                       const planDetails = planTier[planName];
-                      const planNameFormattedForId = formatPlanName(planName);
+                      const fallbackPlanId = getPlanAnchorId(
+                        planTierIdFormatted,
+                        planName
+                      );
                       return (
                         <td key={planName}>
                           {planDetails ? (
                             <span style={{display: 'block'}}>
-                              <a
-                                href={`#${planDetails.id ?? `${planTierIdFormatted}-${planNameFormattedForId}`}`}
-                              >
+                              <a href={`#${planDetails.id ?? fallbackPlanId}`}>
                                 {formatPlanName(planName, true)}
                               </a>
                               {planDetails.id && (
@@ -369,16 +370,14 @@ function PlanDetailsSection({
 }) {
   const theme = useTheme();
   const planNameFormatted = formatPlanName(planName);
+  const fallbackPlanId = getPlanAnchorId(planTierIdFormatted, planName);
 
   return (
     <div>
       <div
         style={{display: 'flex', alignItems: 'center', marginBottom: theme.space['2xl']}}
       >
-        <h3
-          id={planDetails.id ?? `${planTierIdFormatted}-${planNameFormatted}`}
-          style={{margin: '20px 0 5px'}}
-        >
+        <h3 id={planDetails.id ?? fallbackPlanId} style={{margin: '20px 0 5px'}}>
           {planTierIdFormatted} {planNameFormatted} Plan
           {planDetails.id ? ` (${planDetails.id})` : null}
         </h3>
@@ -535,7 +534,10 @@ function getCategoryInfo(
 
 function shouldShowCategoryCode(categoryLabel: string, categoryCode?: string): boolean {
   if (!categoryCode) return false;
-  const labelWithoutPlural = categoryLabel.toLowerCase().replace(/s$/, '');
+  const labelWithoutStatusSuffix = categoryLabel
+    .toLowerCase()
+    .replace(/\s+\(disabled\)$/, '');
+  const labelWithoutPlural = labelWithoutStatusSuffix.replace(/s$/, '');
   return labelWithoutPlural !== categoryCode;
 }
 
@@ -551,6 +553,7 @@ function MergedPriceTiersTable({
   categories?: Record<string, CategoryInfo | string>;
 }) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const planNameIdPart = formatIdToken(planNameFormatted);
 
   const entries = (
     Object.entries(planDetails.price_tiers) as Array<[DataCategory, PriceTier[]]>
@@ -560,7 +563,7 @@ function MergedPriceTiersTable({
 
   const groups: TierGroup[] = entries.flatMap(([dataCategory, tiers]) => {
     const dataCategoryFormatted = formatDataCategory(dataCategory);
-    const dataCategoryId = `${planTierIdFormatted}-${planNameFormatted}-${dataCategoryFormatted}`;
+    const dataCategoryId = `${planTierIdFormatted}-${planNameIdPart}-${formatIdToken(dataCategoryFormatted)}`;
     const disabled = planDetails.data_categories_disabled.includes(dataCategory);
     const categoryLabel = disabled
       ? `${dataCategoryFormatted} (DISABLED)`
@@ -1251,6 +1254,14 @@ function formatPlanName(planType: string, shortenEnterprise = false): string {
     return prefix + parts.join(' ');
   }
   return planType.charAt(0).toUpperCase() + planType.slice(1);
+}
+
+function formatIdToken(value: string): string {
+  return value.trim().replace(/\s+/g, '_');
+}
+
+function getPlanAnchorId(planTierIdFormatted: string, planName: string): string {
+  return `${planTierIdFormatted}-${formatIdToken(formatPlanName(planName))}`;
 }
 
 function formatDataCategory(dataCategory: DataCategory): string {
