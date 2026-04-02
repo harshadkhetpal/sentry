@@ -5,11 +5,13 @@ from typing import TYPE_CHECKING
 
 from django.utils import timezone
 
-from sentry import features
+from sentry import analytics, features
+from sentry.analytics.events.autofix_events import AiAutofixPrCreatedCompletedEvent
 from sentry.models.group import Group
 from sentry.models.organization import Organization
 from sentry.models.project import Project
 from sentry.seer.autofix.autofix_agent import (
+    STEP_CONFIGS,
     AutofixStep,
     trigger_autofix_explorer,
     trigger_coding_agent_handoff,
@@ -235,6 +237,25 @@ class AutofixOnCompletionHook(ExplorerOnCompletionHook):
             metrics.incr(
                 "autofix.explorer.complete", tags={"step": current_step.value, "referrer": referrer}
             )
+            completed_event_cls = STEP_CONFIGS[current_step].completed_event
+            if completed_event_cls is not None and referrer is not None:
+                analytics.record(
+                    completed_event_cls(
+                        organization_id=organization.id,
+                        project_id=group.project_id,
+                        group_id=group.id,
+                        referrer=referrer,
+                    )
+                )
+            if webhook_action_type == SeerActionType.PR_CREATED and referrer is not None:
+                analytics.record(
+                    AiAutofixPrCreatedCompletedEvent(
+                        organization_id=organization.id,
+                        project_id=group.project_id,
+                        group_id=group.id,
+                        referrer=referrer,
+                    )
+                )
 
     @classmethod
     def _maybe_trigger_supergroups_embedding(
