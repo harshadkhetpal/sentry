@@ -148,7 +148,10 @@ export function ProjectTableHeader({
                   key: typeof value === 'object' ? value.provider : value,
                   label,
                   onAction: () => {
-                    bulkMutateSelectedAgent(projects, value);
+                    const selectedProjects = projects.filter(project =>
+                      projectIds.includes(project.id)
+                    );
+                    bulkMutateSelectedAgent(selectedProjects, value);
                   },
                 })) ?? []
               }
