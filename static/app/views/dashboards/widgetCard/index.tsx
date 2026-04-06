@@ -177,13 +177,17 @@ function WidgetCard(props: Props) {
   const navigate = useNavigate();
   const {dashboardId: currentDashboardId} = useParams<{dashboardId: string}>();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const llmDisplayType =
+    props.widget.displayType === DisplayType.TOP_N
+      ? DisplayType.AREA
+      : props.widget.displayType;
 
   // Push widget metadata into the LLM context tree for Seer Explorer.
   useLLMContext({
     title: props.widget.title,
-    displayType: props.widget.displayType,
+    displayType: llmDisplayType,
     widgetType: props.widget.widgetType,
-    queryHint: getQueryHint(props.widget.displayType),
+    queryHint: getQueryHint(llmDisplayType),
     queries: props.widget.queries.map(q => ({
       name: q.name,
       conditions: q.conditions,
@@ -191,7 +195,7 @@ function WidgetCard(props: Props) {
       columns: q.columns,
       orderby: q.orderby,
     })),
-    ...getWidgetData(props.widget.displayType, data),
+    ...getWidgetData(llmDisplayType, data),
   });
 
   const onDataFetched = (newData: Data) => {
