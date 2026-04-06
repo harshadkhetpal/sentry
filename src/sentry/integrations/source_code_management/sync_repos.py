@@ -9,7 +9,6 @@ as needed.
 """
 
 import logging
-from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
 
@@ -18,6 +17,7 @@ from taskbroker_client.retry import Retry
 from sentry import features
 from sentry.constants import ObjectStatus
 from sentry.features.exceptions import FeatureNotRegistered
+from sentry.integrations.github.tasks.link_all_repos import get_repo_config
 from sentry.integrations.models.organization_integration import OrganizationIntegration
 from sentry.integrations.services.integration import integration_service
 from sentry.integrations.services.repository.service import repository_service
@@ -49,14 +49,6 @@ SCM_PROVIDERS = [
     "bitbucket_server",
     "vsts",
 ]
-
-
-def _get_repo_config(repo: Mapping[str, Any], integration_id: int) -> RepositoryInputConfig:
-    return {
-        "external_id": str(repo["id"]),
-        "integration_id": integration_id,
-        "identifier": repo["full_name"],
-    }
 
 
 def _has_feature(flag_name: str, org: Any) -> bool:
@@ -206,7 +198,7 @@ def sync_repos_for_org(organization_integration_id: int) -> None:
         if new_ids:
             integration_repo_provider = get_integration_repository_provider(integration)
             repo_configs: list[RepositoryInputConfig] = [
-                _get_repo_config(repo, integration.id)
+                get_repo_config(repo, integration.id)
                 for repo in provider_repos
                 if str(repo["id"]) in new_ids
             ]
