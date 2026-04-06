@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import datetime
@@ -40,6 +41,8 @@ from sentry.workflow_engine.typings.notification_action import (
     FallthroughChoiceType,
 )
 from sentry.workflow_engine.utils.legacy_metric_tracking import report_used_legacy_models
+
+logger = logging.getLogger(__name__)
 
 # Check for unsupported conditions which exist in Workflows, but are unsupported in Rules
 # if we're trying to return these in legacy APIs, it's best to skip over them and warn the user
@@ -646,7 +649,17 @@ class WorkflowEngineRuleSerializer(Serializer):
                         action
                     ].build_rule_action_blob(action, workflow.organization_id)
                 except ValueError:
-                    # if we have a missing sentry app installation but the action is still connected to the sentry app, we skip so we can return the rest of the rule
+                    logger.warning(
+                        "workflow_engine.action_serialization_failed",
+                        extra={
+                            "action_id": action.id,
+                            "action_type": action.type,
+                            "organization_id": workflow.organization_id,
+                            "workflow_id": workflow.id,
+                        },
+                        exc_info=True,
+                    )
+                    # Keep serializing the rest of the actions even if one action has invalid data.
                     continue
 
             sentry_app_installations_by_uuid = self._fetch_sentry_app_installations_by_uuid(
